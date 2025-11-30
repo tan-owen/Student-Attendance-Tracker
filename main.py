@@ -210,12 +210,10 @@ class App:
                 else:
                     print("Incorrect Password")
                 continue
-            else:
-                print("User not found")
-                continue
-      
-   
-        
+        else:
+            print("User not found")
+
+  
 if __name__ == "__main__":
     # Loading data from file
     student_list = load_student_from_file("res/student.txt")
