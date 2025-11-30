@@ -1,0 +1,2 @@
+CS1000,Software Development Fundamentals,14
+CS1100,Artificial Intelligence,14
