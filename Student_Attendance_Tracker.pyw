@@ -1,4 +1,5 @@
 from tkinter import *
+import os
 
 ##### CLASS DEFINITION #####
 class User: 
@@ -93,16 +94,25 @@ def load_subject_from_file(filepath):
 
 ##### GUI #####
 class App:
-    def __init__(self,student_list,attendance_list,subject_dict):
+    def __init__(self,student_list,attendance_list,subject_dict,attendance_file_path):
         self.student_list = student_list
         self.attendance_list = attendance_list
         self.subject_dict = subject_dict
+        self.attendance_file_path = attendance_file_path
 
         self.window = Tk()
         self.window.title("Attendance System")
         self.window.minsize(800,500) 
         self.window.configure(bg="#f0f2f5") 
         
+        try:
+            #Get absolute directory
+            base_dir = os.path.dirname(os.path.abspath(__file__))
+            icon_path = os.path.join(base_dir, "res", "icon.ico")
+            self.window.iconbitmap(icon_path)
+        except Exception:
+            pass
+
         self.login_screen()
 
         self.window.mainloop()
@@ -228,12 +238,12 @@ class App:
         self.page_selection_frame.forget()
 
         self.attendance_registration_frame = Frame(self.window,padx="20",pady="10")
-        self.attendance_registration_frame.configure(bg="purple")  
+        self.attendance_registration_frame.configure(bg="#f0f2f5")  
         self.attendance_registration_frame.pack(fill="both",expand=True) 
         
         Button(self.attendance_registration_frame, text="< Back", command=self.back_from_reg).pack(anchor="nw", pady=5)
 
-        Label(self.attendance_registration_frame, text="Mark New Attendance", bg="purple", fg="white", font=("Arial", 14)).pack(pady=10)
+        Label(self.attendance_registration_frame, text="Mark New Attendance",font=("Helvetica", 24, "bold"),bg="#f0f2f5").pack(pady=10)
 
         form_frame = Frame(self.attendance_registration_frame, bg="white", padx=20, pady=20)
         form_frame.pack()
@@ -302,7 +312,7 @@ class App:
 
         Button(form_frame, text="Mark Attendance", command=self.save_attendance_data, bg="green", fg="white").grid(row=4, column=0, columnspan=2, pady=15, sticky="ew")
         
-        self.status_label = Label(self.attendance_registration_frame, text="", bg="purple", fg="white")
+        self.status_label = Label(self.attendance_registration_frame, text="", bg="#f0f2f5", fg="white")
         self.status_label.pack(pady=10)
 
     def back_from_reg(self):
@@ -346,7 +356,7 @@ class App:
 
         try:
             line_to_write = f"{subject_id},{self.logged_in_user_ID},{time_in},{date_in},{status_val}\n"
-            with open("res/attendance.txt", "a") as file:
+            with open(self.attendance_file_path, "a") as file: 
                 file.write(line_to_write)
             
             new_log = Attendance_Logs(subject_id, self.logged_in_user_ID, time_in, date_in, int(status_val))
@@ -425,19 +435,33 @@ class App:
         total_classes = int(self.subject_dict[subject_id].number_class)
         progress_ratio = class_attended / total_classes if total_classes > 0 else 0
         
-        attendance_bar.create_line(0, 10, canvas_width, 10, fill="blue", width=20)
+        attendance_bar.create_line(0, 10, canvas_width, 10, fill="#CBCBCB", width=20)
         attendance_bar.create_line(0, 10, progress_ratio * canvas_width, 10, fill="green", width=20)
         
         class_attended_percentage = f"{class_attended:02d}/{total_classes:02d}  Class Attended   |   {str(round(progress_ratio * 100,2))}%"
         attendance_bar.create_text(90,9,text=class_attended_percentage)
 
 if __name__ == "__main__":
+    # Get absolute path
+    BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+    res_dir = os.path.join(BASE_DIR, "res")
+
+    #Create absolute paths
+    student_path = os.path.join(res_dir, "student.txt")
+    attendance_path = os.path.join(res_dir, "attendance.txt")
+    subject_path = os.path.join(res_dir, "subject.txt")
+
     try:
-        student_list = load_student_from_file("res/student.txt")
-        attendance_list = load_attendance_from_file("res/attendance.txt")
-        subject_dict = load_subject_from_file("res/subject.txt")
-        append_attendance_to_student(student_list,attendance_list)
+        # Load data using the absolute paths
+        student_list = load_student_from_file(student_path)
+        attendance_list = load_attendance_from_file(attendance_path)
+        subject_dict = load_subject_from_file(subject_path)
         
-        App(student_list=student_list,attendance_list=attendance_list,subject_dict=subject_dict)
+        append_attendance_to_student(student_list, attendance_list)
+    
+        App(student_list, attendance_list, subject_dict, attendance_path)
+        
     except FileNotFoundError:
-        print("Please ensure the 'res' folder and txt files exist.")
+        print(f"Error: Could not find files in {res_dir}. Please ensure the 'res' folder and txt files exist.")
+    except Exception as e:
+        print(f"An unexpected error occurred: {e}")
