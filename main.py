@@ -121,7 +121,7 @@ class App:
         container = Frame(self.page_selection_frame)
         container.pack(expand=True)
 
-        self.attendance_registration_button = Button(container,text="Register Attendance",command=self.attendance_registration_screen,font=("Arial", 16, "bold"),width=25,height=2,bg="#4CAF50")
+        self.attendance_registration_button = Button(container,text="Mark Attendance",command=self.attendance_registration_screen,font=("Arial", 16, "bold"),width=25,height=2,bg="#4CAF50")
         self.attendance_registration_button.pack(pady=20)
 
         self.check_attendance_button = Button(container,text="Check Attendance",command=self.attendance_screen,font=("Arial", 16, "bold"),width=25,height=2,bg="#2196F3")
@@ -188,7 +188,7 @@ class App:
         sub_name = self.subject_dict[subject_id].name
         Label(self.detail_frame, text=f"Logs for: {sub_name}", font=("Arial", 18, "bold")).pack(pady=15)
 
-        # Attendnace Log Container
+        # Attendance Log Container
         log_container = Frame(self.detail_frame)
         log_container.pack(fill="both", expand=True)
 
@@ -300,7 +300,7 @@ class App:
         Radiobutton(status_frame, text="Present", variable=self.status_var, value="1", bg="white").pack(side=LEFT, padx=5)
         Radiobutton(status_frame, text="Absent", variable=self.status_var, value="0", bg="white").pack(side=LEFT, padx=5)
 
-        Button(form_frame, text="Save Attendance", command=self.save_attendance_data, bg="green", fg="white").grid(row=4, column=0, columnspan=2, pady=15, sticky="ew")
+        Button(form_frame, text="Mark Attendance", command=self.save_attendance_data, bg="green", fg="white").grid(row=4, column=0, columnspan=2, pady=15, sticky="ew")
         
         self.status_label = Label(self.attendance_registration_frame, text="", bg="purple", fg="white")
         self.status_label.pack(pady=10)
