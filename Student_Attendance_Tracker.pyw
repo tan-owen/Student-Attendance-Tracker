@@ -1,34 +1,31 @@
 from tkinter import *
-from tkinter import messagebox # Added for safer error handling if needed, though stuck to labels as per style
 import os
 
 ##### CLASS DEFINITION #####
 class User: 
     # Base class for a basic user information
-    def __init__(self, user_ID, password, first_name, last_name):
+    def __init__(self, user_ID, first_name, last_name):
         self.user_ID = user_ID
-        self.__password = password
         self.first_name = first_name
         self.last_name = last_name
-        
-    def set_password(self):
-        self.__password
-    def get_password(self):
-        return self.__password
 
 class Student(User): 
-    # Inherits from User and adds list to store attendance records
-    def __init__(self, user_ID, password, first_name, last_name):
-        super().__init__(user_ID, password, first_name, last_name)
+    # Inherits from User - No password required
+    def __init__(self, user_ID, first_name, last_name):
+        super().__init__(user_ID, first_name, last_name)
         self.attendance_records = []
 
     def add_attendance_records(self, record):
         self.attendance_records.append(record)
 
 class Teacher(User):
-    # Inherits from User, represents the admin/teacher user
+    # Inherits from User but adds password support for login
     def __init__(self, user_ID, password, first_name, last_name):
-        super().__init__(user_ID, password, first_name, last_name)
+        super().__init__(user_ID, first_name, last_name)
+        self.__password = password
+
+    def get_password(self):
+        return self.__password
 
 class Attendance_Logs: 
     # Stores details for a single attendance entry
@@ -49,6 +46,7 @@ class Subject:
 ##### FILE HANDLING #####
 def load_student_from_file(filepath):
     # Reads student.txt and creates Student objects
+    # FORMAT EXPECTED: ID,Firstname,Lastname
     data_list = []
     try:
         with open(filepath) as file:
@@ -56,15 +54,16 @@ def load_student_from_file(filepath):
                 line = line.strip()
                 if not line: continue
                 student_list = line.split(",")
-                if len(student_list) < 4: continue
+                if len(student_list) < 3: continue 
                 try:
-                    data_list.append(Student(student_list[0], student_list[1], student_list[2], student_list[3]))
+                    data_list.append(Student(student_list[0], student_list[1], student_list[2]))
                 except Exception: continue
     except Exception: return []
     return data_list
 
 def load_teacher_from_file(filepath):
     # Reads teacher.txt and creates Teacher objects
+    # FORMAT EXPECTED: ID,Password,Firstname,Lastname
     data_list = []
     try:
         with open(filepath) as file:
@@ -372,7 +371,7 @@ class App:
         form_frame = Frame(self.attendance_registration_frame, bg="white", padx=20, pady=20)
         form_frame.pack()
 
-        # Dropdown for Students (New Addition)
+        # Dropdown for Students
         Label(form_frame, text="Student:", bg="white").grid(row=0, column=0, sticky="e", pady=5)
         
         self.student_name_map = {}
@@ -614,7 +613,7 @@ if __name__ == "__main__":
     BASE_DIR = os.path.dirname(os.path.abspath(__file__))
     res_dir = os.path.join(BASE_DIR, "res")
     student_path = os.path.join(res_dir, "student.txt")
-    teacher_path = os.path.join(res_dir, "teacher.txt") # New file
+    teacher_path = os.path.join(res_dir, "teacher.txt") 
     attendance_path = os.path.join(res_dir, "attendance.txt")
     subject_path = os.path.join(res_dir, "subject.txt")
 
