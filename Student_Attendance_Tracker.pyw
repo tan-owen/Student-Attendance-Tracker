@@ -1,4 +1,5 @@
 from tkinter import *
+from tkinter import messagebox # Added for safer error handling if needed, though stuck to labels as per style
 import os
 
 ##### CLASS DEFINITION #####
@@ -23,6 +24,11 @@ class Student(User):
 
     def add_attendance_records(self, record):
         self.attendance_records.append(record)
+
+class Teacher(User):
+    # Inherits from User, represents the admin/teacher user
+    def __init__(self, user_ID, password, first_name, last_name):
+        super().__init__(user_ID, password, first_name, last_name)
 
 class Attendance_Logs: 
     # Stores details for a single attendance entry
@@ -53,6 +59,22 @@ def load_student_from_file(filepath):
                 if len(student_list) < 4: continue
                 try:
                     data_list.append(Student(student_list[0], student_list[1], student_list[2], student_list[3]))
+                except Exception: continue
+    except Exception: return []
+    return data_list
+
+def load_teacher_from_file(filepath):
+    # Reads teacher.txt and creates Teacher objects
+    data_list = []
+    try:
+        with open(filepath) as file:
+            for line in file:
+                line = line.strip()
+                if not line: continue
+                teacher_list = line.split(",")
+                if len(teacher_list) < 4: continue
+                try:
+                    data_list.append(Teacher(teacher_list[0], teacher_list[1], teacher_list[2], teacher_list[3]))
                 except Exception: continue
     except Exception: return []
     return data_list
@@ -102,17 +124,21 @@ def load_subject_from_file(filepath):
 
 ##### GUI #####
 class App:
-    def __init__(self,student_list,attendance_list,subject_dict,attendance_file_path):
+    def __init__(self,student_list, teacher_list, attendance_list,subject_dict,attendance_file_path):
         # Initialize main application data
         self.student_list = student_list
+        self.teacher_list = teacher_list
         self.attendance_list = attendance_list
         self.subject_dict = subject_dict
         self.attendance_file_path = attendance_file_path
+        
+        # State variables for teacher selection
+        self.selected_student_for_viewing = None
 
         # Setup main window
         self.window = Tk()
-        self.window.title("Attendance System")
-        self.window.minsize(800,500) 
+        self.window.title("Teacher Attendance Portal")
+        self.window.minsize(800,600) 
         self.window.configure(bg="#f0f2f5") 
         
         # Load icon if available
@@ -145,20 +171,20 @@ class App:
         container = Frame(self.page_selection_frame, bg="#f0f2f5")
         container.pack(expand=True)
 
-        # Retrieve Student Name for Welcome Message
-        full_name = "Student"
-        for student in self.student_list:
-            if student.user_ID == self.logged_in_user_ID:
-                full_name = f"{student.first_name} {student.last_name}"
+        # Retrieve Teacher Name for Welcome Message
+        full_name = "Teacher"
+        for teacher in self.teacher_list:
+            if teacher.user_ID == self.logged_in_user_ID:
+                full_name = f"{teacher.first_name} {teacher.last_name}"
                 break
         
         # Screen selection button
         Label(container, text=f"Welcome, {full_name}", font=("Helvetica", 20, "bold"), bg="#f0f2f5", fg="#333").pack(pady=(0, 30))
 
-        self.attendance_registration_button = Button(container,text="Mark Attendance",command=self.attendance_registration_screen,font=("Arial", 16, "bold"),width=25,height=2,bg="#4CAF50")
+        self.attendance_registration_button = Button(container,text="Mark Student Attendance",command=self.attendance_registration_screen,font=("Arial", 16, "bold"),width=25,height=2,bg="#4CAF50")
         self.attendance_registration_button.pack(pady=20)
 
-        self.check_attendance_button = Button(container,text="Check Attendance",command=self.attendance_screen,font=("Arial", 16, "bold"),width=25,height=2,bg="#2196F3")
+        self.check_attendance_button = Button(container,text="View Student Logs",command=self.attendance_screen,font=("Arial", 16, "bold"),width=25,height=2,bg="#2196F3")
         self.check_attendance_button.pack(pady=20)
         
         # Logout Button
@@ -181,10 +207,10 @@ class App:
         login_card.place(relx=0.5, rely=0.5, anchor="center")
 
         # Title
-        Label(login_card, text="Student Attendance System", font=("Helvetica", 16, "bold"), bg="white", fg="#333").pack(pady=(0, 5))
+        Label(login_card, text="Teacher Login Portal", font=("Helvetica", 16, "bold"), bg="white", fg="#333").pack(pady=(0, 5))
 
         # Username Entry
-        Label(login_card, text="User ID", font=("Arial", 11), bg="white", fg="#555").pack(anchor="w")
+        Label(login_card, text="Teacher ID", font=("Arial", 11), bg="white", fg="#555").pack(anchor="w")
         self.username_entry = Entry(login_card, font=("Arial", 12), width=25, bd=1, relief="solid")
         self.username_entry.pack(pady=(5, 15), ipady=5)
 
@@ -211,17 +237,66 @@ class App:
         self.attendance_screen_frame.configure(bg="#f0f2f5")
         self.attendance_screen_frame.pack(fill="both", expand=True, padx=0, pady=0)
         
-        Button(self.attendance_screen_frame, text="< Back", command=self.back_from_check).pack(anchor="nw", padx=10, pady=5)
+        # Navigation
+        top_bar = Frame(self.attendance_screen_frame, bg="#f0f2f5")
+        top_bar.pack(fill="x", padx=10, pady=5)
+        Button(top_bar, text="< Back", command=self.back_from_check).pack(side=LEFT)
 
-        Label(self.attendance_screen_frame, text="Click a subject to view logs",font=("Helvetica", 24, "bold"),bg="#f0f2f5").pack(pady=5)
+        Label(self.attendance_screen_frame, text="View Student Attendance",font=("Helvetica", 24, "bold"),bg="#f0f2f5").pack(pady=5)
 
-        # Populate list of subjects the student has attended
-        subject_list = self.get_subject() 
+        # Student Selection for Viewing
+        selection_frame = Frame(self.attendance_screen_frame, bg="#f0f2f5")
+        selection_frame.pack(pady=10)
+        
+        Label(selection_frame, text="Select Student: ", bg="#f0f2f5", font=("Arial", 12)).pack(side=LEFT)
+        
+        self.view_student_map = {}
+        student_options = []
+        for student in self.student_list:
+            name = f"{student.first_name} {student.last_name} ({student.user_ID})"
+            self.view_student_map[name] = student.user_ID
+            student_options.append(name)
+        
+        if not student_options: student_options = ["No Students"]
+
+        self.selected_view_student_var = StringVar(self.window)
+        self.selected_view_student_var.set(student_options[0])
+        self.selected_student_for_viewing = self.view_student_map.get(student_options[0])
+
+        # Dropdown
+        view_dropdown = OptionMenu(selection_frame, self.selected_view_student_var, *student_options, command=self.update_subject_list_view)
+        view_dropdown.pack(side=LEFT, padx=10)
+
+        # Container for subject list
+        self.subject_list_container = Frame(self.attendance_screen_frame, bg="#f0f2f5")
+        self.subject_list_container.pack(fill="both", expand=True)
+
+        # Initial Load
+        self.refresh_subject_list()
+
+    def update_subject_list_view(self, value):
+        # Callback when dropdown changes
+        self.selected_student_for_viewing = self.view_student_map.get(value)
+        self.refresh_subject_list()
+
+    def refresh_subject_list(self):
+        # Clear existing widgets in container
+        for widget in self.subject_list_container.winfo_children():
+            widget.destroy()
+
+        if not self.selected_student_for_viewing: return
+
+        # Populate list of subjects the SELECTED student has attended
+        subject_list = self.get_subject(self.selected_student_for_viewing) 
+        
+        if not subject_list:
+             Label(self.subject_list_container, text="No attendance records found for this student.", bg="#f0f2f5", fg="gray").pack(pady=20)
+
         for subject_id in subject_list:
-            self.add_subject(subject_id) 
+            self.add_subject(subject_id, self.selected_student_for_viewing) 
 
-    def view_subject_details(self, subject_id):
-        # Shows detailed logs for a specific subject
+    def view_subject_details(self, subject_id, student_id):
+        # Shows detailed logs for a specific subject AND specific student
         self.attendance_screen_frame.forget()
 
         self.detail_frame = Frame(self.window)
@@ -230,7 +305,16 @@ class App:
         Button(self.detail_frame, text="< Back", command=self.back_from_details).pack(anchor="w", pady=5)
 
         sub_name = self.subject_dict[subject_id].name
-        Label(self.detail_frame, text=f"Logs for: {sub_name}", font=("Arial", 18, "bold")).pack(pady=15)
+        
+        # Find student name for header
+        st_name = "Student"
+        for st in self.student_list:
+            if st.user_ID == student_id:
+                st_name = f"{st.first_name} {st.last_name}"
+                break
+
+        Label(self.detail_frame, text=f"Logs for: {sub_name}", font=("Arial", 18, "bold")).pack(pady=(15,5))
+        Label(self.detail_frame, text=f"Student: {st_name}", font=("Arial", 12)).pack(pady=(0,15))
 
         # Attendance Log Container
         log_container = Frame(self.detail_frame)
@@ -238,7 +322,7 @@ class App:
 
         current_student = None
         for student in self.student_list:
-            if student.user_ID == self.logged_in_user_ID:
+            if student.user_ID == student_id:
                 current_student = student
                 break
         
@@ -283,10 +367,26 @@ class App:
         
         Button(self.attendance_registration_frame, text="< Back", command=self.back_from_reg).pack(anchor="nw", pady=5)
 
-        Label(self.attendance_registration_frame, text="Mark New Attendance",font=("Helvetica", 24, "bold"),bg="#f0f2f5").pack(pady=10)
+        Label(self.attendance_registration_frame, text="Mark Student Attendance",font=("Helvetica", 24, "bold"),bg="#f0f2f5").pack(pady=10)
 
         form_frame = Frame(self.attendance_registration_frame, bg="white", padx=20, pady=20)
         form_frame.pack()
+
+        # Dropdown for Students (New Addition)
+        Label(form_frame, text="Student:", bg="white").grid(row=0, column=0, sticky="e", pady=5)
+        
+        self.student_name_map = {}
+        student_dropdown_options = []
+        for student in self.student_list:
+            name = f"{student.first_name} {student.last_name} ({student.user_ID})"
+            self.student_name_map[name] = student.user_ID
+            student_dropdown_options.append(name)
+        
+        if not student_dropdown_options: student_dropdown_options = ["No Students"]
+
+        self.selected_target_student_var = StringVar(self.window)
+        self.selected_target_student_var.set(student_dropdown_options[0])
+        OptionMenu(form_frame, self.selected_target_student_var, *student_dropdown_options).grid(row=0, column=1, sticky="w", pady=5)
 
         # Dropdown for subjects
         self.subject_name_map = {}
@@ -298,16 +398,16 @@ class App:
         
         if not dropdown_options: dropdown_options = ["No Subjects"]
 
-        Label(form_frame, text="Subject:", bg="white").grid(row=0, column=0, sticky="e", pady=5)
+        Label(form_frame, text="Subject:", bg="white").grid(row=1, column=0, sticky="e", pady=5)
         self.selected_subject_var = StringVar(self.window)
         self.selected_subject_var.set(dropdown_options[0])
-        OptionMenu(form_frame, self.selected_subject_var, *dropdown_options).grid(row=0, column=1, sticky="w", pady=5)
+        OptionMenu(form_frame, self.selected_subject_var, *dropdown_options).grid(row=1, column=1, sticky="w", pady=5)
 
         # DATE Dropdowns
-        Label(form_frame, text="Date:", bg="white").grid(row=1, column=0, sticky="e", pady=5)
+        Label(form_frame, text="Date:", bg="white").grid(row=2, column=0, sticky="e", pady=5)
         
         date_frame = Frame(form_frame, bg="white")
-        date_frame.grid(row=1, column=1, sticky="w")
+        date_frame.grid(row=2, column=1, sticky="w")
 
         days = [f"{i:02d}" for i in range(1, 32)]      
         months = [f"{i:02d}" for i in range(1, 13)]    
@@ -324,10 +424,10 @@ class App:
         OptionMenu(date_frame, self.year_var, *years).pack(side=LEFT)
 
         # TIME Dropdowns
-        Label(form_frame, text="Time:", bg="white").grid(row=2, column=0, sticky="e", pady=5)
+        Label(form_frame, text="Time:", bg="white").grid(row=3, column=0, sticky="e", pady=5)
         
         time_frame = Frame(form_frame, bg="white")
-        time_frame.grid(row=2, column=1, sticky="w")
+        time_frame.grid(row=3, column=1, sticky="w")
 
         hours = [f"{i:02d}" for i in range(0, 24)]      
         minutes = [f"{i:02d}" for i in range(0, 60)]   
@@ -340,17 +440,17 @@ class App:
         OptionMenu(time_frame, self.minute_var, *minutes).pack(side=LEFT)
 
         # STATUS Radio Buttons
-        Label(form_frame, text="Status:", bg="white").grid(row=3, column=0, sticky="e", pady=5)
+        Label(form_frame, text="Status:", bg="white").grid(row=4, column=0, sticky="e", pady=5)
         
         status_frame = Frame(form_frame, bg="white")
-        status_frame.grid(row=3, column=1, sticky="w")
+        status_frame.grid(row=4, column=1, sticky="w")
 
         self.status_var = StringVar(value="1") # Default is 1
         
         Radiobutton(status_frame, text="Present", variable=self.status_var, value="1", bg="white").pack(side=LEFT, padx=5)
         Radiobutton(status_frame, text="Absent", variable=self.status_var, value="0", bg="white").pack(side=LEFT, padx=5)
 
-        Button(form_frame, text="Mark Attendance", command=self.save_attendance_data, bg="green", fg="white").grid(row=4, column=0, columnspan=2, pady=15, sticky="ew")
+        Button(form_frame, text="Mark Attendance", command=self.save_attendance_data, bg="green", fg="white").grid(row=5, column=0, columnspan=2, pady=15, sticky="ew")
         
         self.status_label = Label(self.attendance_registration_frame, text="", bg="#f0f2f5", fg="white")
         self.status_label.pack(pady=10)
@@ -366,6 +466,14 @@ class App:
         self.page_select_screen()
 
     def save_attendance_data(self):
+        # Get target student
+        target_student_name = self.selected_target_student_var.get()
+        if target_student_name not in self.student_name_map:
+            self.status_label.config(text="Error: Invalid Student", fg="red")
+            return
+        
+        target_user_ID = self.student_name_map[target_student_name]
+
         subject_name = self.selected_subject_var.get()
         date_in = self.day_var.get() + self.month_var.get() + self.year_var.get()
         time_in = self.hour_var.get() + self.minute_var.get()
@@ -379,7 +487,7 @@ class App:
 
         #Check for duplicate logs
         for student in self.student_list:
-            if student.user_ID == self.logged_in_user_ID:
+            if student.user_ID == target_user_ID:
                 for record in student.attendance_records:
                     if (record.subject_ID == subject_id and 
                         record.date_registered == date_in and 
@@ -398,7 +506,7 @@ class App:
 
         current_log_count = 0
         for student in self.student_list:
-            if student.user_ID == self.logged_in_user_ID:
+            if student.user_ID == target_user_ID:
                 for record in student.attendance_records:
                     if record.subject_ID == subject_id:
                         current_log_count += 1
@@ -410,14 +518,14 @@ class App:
 
         # Write to file and update runtime
         try:
-            line_to_write = f"{subject_id},{self.logged_in_user_ID},{time_in},{date_in},{status_val}\n"
+            line_to_write = f"{subject_id},{target_user_ID},{time_in},{date_in},{status_val}\n"
             with open(self.attendance_file_path, "a") as file: 
                 file.write(line_to_write)
-            new_log = Attendance_Logs(subject_id, self.logged_in_user_ID, time_in, date_in, status_val)
+            new_log = Attendance_Logs(subject_id, target_user_ID, time_in, date_in, status_val)
             self.attendance_list.append(new_log)
             
             for student in self.student_list:
-                if student.user_ID == self.logged_in_user_ID:
+                if student.user_ID == target_user_ID:
                     student.add_attendance_records(new_log)
 
             self.status_label.config(text="Success! Saved.", fg="lightgreen")
@@ -427,13 +535,13 @@ class App:
             print(e)
 
     def user_validation(self):
-        # Validate credentials against loaded student list
+        # Validate credentials against loaded TEACHER list
         input_user = self.username_entry.get()
         input_pass = self.password_entry.get()
         self.logged_in_user_ID = ""
         found_user = False
         
-        for user in self.student_list:
+        for user in self.teacher_list:
             if input_user == user.user_ID:
                 found_user = True
                 if input_pass == user.get_password():
@@ -446,24 +554,24 @@ class App:
                     return
         
         if not found_user:
-            self.login_message_label.config(text="User not found")
+            self.login_message_label.config(text="Teacher ID not found")
     
-    def get_subject(self):
-        #Returns list of unique subjects attended by the logged in user
+    def get_subject(self, student_id):
+        #Returns list of unique subjects attended by the SELECTED student
         student_subject_list = []
         for logs in self.attendance_list:
-            if (logs.subject_ID not in student_subject_list) and (self.logged_in_user_ID == logs.user_ID):
+            if (logs.subject_ID not in student_subject_list) and (logs.user_ID == student_id):
                 student_subject_list.append(logs.subject_ID)
             else: continue
         return student_subject_list
 
-    def add_subject(self, subject_id):
+    def add_subject(self, subject_id, student_id):
         # Creates a clickable list item with progress bar for a subject
-        subject_frame = Frame(self.attendance_screen_frame)
+        subject_frame = Frame(self.subject_list_container)
         subject_frame.pack(fill="x", padx=10, pady=5) 
         
         # Temp function to stop it from immediately executing
-        on_click = lambda event: self.view_subject_details(subject_id)
+        on_click = lambda event: self.view_subject_details(subject_id, student_id)
 
         subject_frame.bind("<Button-1>", on_click)
         subject_frame.configure(cursor="hand2")
@@ -485,7 +593,7 @@ class App:
         # Calculate Progress
         class_attended = 0
         for student in self.student_list:
-            if student.user_ID == self.logged_in_user_ID:
+            if student.user_ID == student_id:
                 for logs in student.attendance_records:
                     if logs.subject_ID == subject_id:
                         class_attended += int(logs.status)
@@ -506,18 +614,20 @@ if __name__ == "__main__":
     BASE_DIR = os.path.dirname(os.path.abspath(__file__))
     res_dir = os.path.join(BASE_DIR, "res")
     student_path = os.path.join(res_dir, "student.txt")
+    teacher_path = os.path.join(res_dir, "teacher.txt") # New file
     attendance_path = os.path.join(res_dir, "attendance.txt")
     subject_path = os.path.join(res_dir, "subject.txt")
 
     try:
 
         student_list = load_student_from_file(student_path)
+        teacher_list = load_teacher_from_file(teacher_path)
         attendance_list = load_attendance_from_file(attendance_path)
         subject_dict = load_subject_from_file(subject_path)
         
         append_attendance_to_student(student_list, attendance_list)
     
-        App(student_list, attendance_list, subject_dict, attendance_path)
+        App(student_list, teacher_list, attendance_list, subject_dict, attendance_path)
         
     except FileNotFoundError:
         print(f"Error: Could not find files in {res_dir}. Please ensure the 'res' folder and txt files exist.")
